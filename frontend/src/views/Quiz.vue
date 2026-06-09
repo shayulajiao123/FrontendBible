@@ -39,17 +39,17 @@
           <div 
             v-for="(opt, idx) in currentQ.options" 
             :key="idx"
-            @click="toggleOption(opt)"
+            @click="toggleOption(opt, idx)"
             class="flex items-start p-4 rounded-xl border-2 cursor-pointer transition-colors"
-            :class="getOptionClass(opt)"
+            :class="getOptionClass(opt, idx)"
           >
             <div class="mt-0.5 flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center mr-3"
-                 :class="getOptionIconClass(opt)">
+                 :class="getOptionIconClass(opt, idx)">
               <!-- 选中对勾 -->
-              <svg v-if="isSelected(opt) && !isEvaluated" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+              <svg v-if="isSelected(opt, idx) && !isEvaluated" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
               <!-- 判卷后的对错图标 -->
-              <svg v-if="isEvaluated && isCorrectOption(opt)" class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
-              <svg v-if="isEvaluated && isSelected(opt) && !isCorrectOption(opt)" class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
+              <svg v-if="isEvaluated && isCorrectOption(opt, idx)" class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+              <svg v-if="isEvaluated && isSelected(opt, idx) && !isCorrectOption(opt, idx)" class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
             </div>
             <span class="text-gray-700 leading-relaxed font-medium">{{ getDisplayText(opt) }}</span>
           </div>
@@ -154,13 +154,7 @@ const isCorrect = computed(() => {
   return currentAns.value.length === currentQ.value.answer.length && currentAns.value.every(v => currentQ.value.answer.includes(v));
 })
 
-// 支持 "A. 选项" 或纯 "选项"
-const getChar = (opt) => {
-  if (/^[A-Z][.、:]\s*/.test(opt)) {
-    return opt.charAt(0);
-  }
-  return opt;
-}
+const getCharByIndex = (idx) => String.fromCharCode(65 + idx);
 
 const getDisplayText = (opt) => {
   if (/^[A-Z][.、:]\s*/.test(opt)) {
@@ -169,33 +163,36 @@ const getDisplayText = (opt) => {
   return opt;
 }
 
-const isSelected = (opt) => currentAns.value.includes(getChar(opt))
-const isCorrectOption = (opt) => currentQ.value.answer.includes(getChar(opt))
+const isSelected = (opt, idx) => {
+  if (opt === 'CORRECT' || opt === 'WRONG') return currentAns.value.includes(opt);
+  return currentAns.value.includes(getCharByIndex(idx));
+}
+const isCorrectOption = (opt, idx) => currentQ.value.answer.includes(getCharByIndex(idx))
 
-const getOptionClass = (opt) => {
+const getOptionClass = (opt, idx) => {
   if (store.mode === 'mock' || !isEvaluated.value) {
     // 未判卷：普通的选中状态
-    return isSelected(opt) ? 'border-brand-green bg-[#F2F8F5]' : 'border-gray-100 hover:bg-gray-50'
+    return isSelected(opt, idx) ? 'border-brand-green bg-[#F2F8F5]' : 'border-gray-100 hover:bg-gray-50'
   }
   // 已判卷：正确选项标绿，选错的标红，其他置灰
-  if (isCorrectOption(opt)) {
+  if (isCorrectOption(opt, idx)) {
     return 'border-green-500 bg-green-50'
   }
-  if (isSelected(opt) && !isCorrectOption(opt)) {
+  if (isSelected(opt, idx) && !isCorrectOption(opt, idx)) {
     return 'border-red-500 bg-red-50'
   }
   return 'border-gray-100 opacity-60'
 }
 
-const getOptionIconClass = (opt) => {
+const getOptionIconClass = (opt, idx) => {
   const shape = currentQ.value.type === 'multiple' ? 'rounded' : 'rounded-full';
   if (store.mode === 'mock' || !isEvaluated.value) {
-    return [shape, isSelected(opt) ? 'bg-brand-green border-brand-green text-white' : 'border-gray-300']
+    return [shape, isSelected(opt, idx) ? 'bg-brand-green border-brand-green text-white' : 'border-gray-300']
   }
-  if (isCorrectOption(opt)) {
+  if (isCorrectOption(opt, idx)) {
     return [shape, 'bg-green-500 border-green-500']
   }
-  if (isSelected(opt) && !isCorrectOption(opt)) {
+  if (isSelected(opt, idx) && !isCorrectOption(opt, idx)) {
     return [shape, 'bg-red-500 border-red-500']
   }
   return [shape, 'border-gray-300']
@@ -232,9 +229,14 @@ const formatTime = (seconds) => {
   return `${m}:${s}`
 }
 
-const toggleOption = (optString) => {
+const toggleOption = (optString, idx) => {
   if (isEvaluated.value) return; // 已判卷，锁定选项
-  const char = getChar(optString)
+  let char;
+  if (optString === 'CORRECT' || optString === 'WRONG') {
+    char = optString;
+  } else {
+    char = getCharByIndex(idx);
+  }
   let ans = [...currentAns.value]
   if (currentQ.value.type === 'single' || currentQ.value.type === 'code') {
     ans = [char]
